@@ -1,126 +1,242 @@
-import React from 'react-native';
-const {
+'use strict';
+
+var React = require('react-native');
+var {
   PixelRatio,
   StatusBarIOS,
-  Component,
+  StyleSheet,
   Text,
-  View,
-  PropTypes
+  TouchableOpacity,
+  View
 } = React;
-import NavbarButton from './NavbarButton';
-import styles from './styles';
 
-const ButtonShape = {
-  title: PropTypes.string.isRequired,
-  style: PropTypes.object,
-  handler: PropTypes.func,
-};
+var NAV_BAR_HEIGHT = 44;
+var STATUS_BAR_HEIGHT = 20;
+var NAV_HEIGHT = NAV_BAR_HEIGHT + STATUS_BAR_HEIGHT;
 
-const TitleShape = {
-  title: PropTypes.string.isRequired,
-  tintColor: PropTypes.string,
-};
-
-const StatusBarShape = {
-  style: PropTypes.oneOf(['light-content', 'default', ]),
-  hidden: PropTypes.bool,
-  tintColor: PropTypes.string,
-  hideAnimation: PropTypes.oneOf(['fade', 'slide', 'none', ]),
-  showAnimation: PropTypes.oneOf(['fade', 'slide', 'none', ])
-};
-
-function customizeStatusBar(data) {
-  if (data.style) {
-    StatusBarIOS.setStyle(data.style, true);
+var styles = StyleSheet.create({
+  navBarContainer: {
+    height: NAV_HEIGHT,
+    backgroundColor: 'white',
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    paddingBottom: 5,
+    borderBottomColor: 'rgba(0, 0, 0, 0.5)',
+    borderBottomWidth: 1 / PixelRatio.get(),
+    justifyContent: 'space-between',
+  },
+  customTitle: {
+    position: 'absolute',
+    alignItems: 'center',
+    bottom: 5,
+    left: 0,
+    right: 0,
+  },
+  navBarText: {
+    fontSize: 16,
+    marginVertical: 10,
+    flex: 2,
+    textAlign: 'center',
+  },
+  navBarTitleText: {
+    color: '#373e4d',
+    fontWeight: '500',
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 15,
+  },
+  navBarLeftButton: {
+    paddingLeft: 10,
+  },
+  navBarRightButton: {
+    paddingRight: 10,
+  },
+  navBarButtonText: {
+    color: '#5890ff',
   }
-  const animation = data.hidden ?
-    (data.hideAnimation || NavigationBar.defaultProps.statusBar.hideAnimation) :
-    (data.showAnimation || NavigationBar.defaultProps.statusBar.showAnimation);
+});
 
-  StatusBarIOS.setHidden(data.hidden, animation);
-}
+var NavigationBar = React.createClass({
 
-export default class NavigationBar extends Component {
-  componentDidMount() {
-    customizeStatusBar(this.props.statusBar);
-  }
+  propTypes: {
+    navigator: React.PropTypes.object,
+    route: React.PropTypes.object,
+    shouldUpdate: React.PropTypes.bool
+  },
 
-  componentWillReceiveProps(props) {
-    customizeStatusBar(this.props.statusBar);
-  }
-
-  getButtonElement(data = {}, style) {
-    if (!!data.props) {
-      return <View style={styles.navBarButton}>{data}</View>;
+  getDefaultProps: function() {
+    return {
+      shouldUpdate: false
     }
+  },
 
-    return <NavbarButton
-      title={data.title}
-      style={[data.style, style, ]}
-      tintColor={data.tintColor}
-      handler={data.handler} />;
-  }
+  /*
+   * If there are no routes in the stack, `hidePrev` isn't provided or false,
+   * and we haven't received `onPrev` click handler, return true
+   */
+  prevButtonShouldBeHidden: function() {
+    var {
+      onPrev,
+      hidePrev,
+      navigator
+    } = this.props;
 
-  getTitleElement(data) {
-    if (!!data.props) {
-      return <View style={styles.customTitle}>{data}</View>;
-    }
-
-    const colorStyle = data.tintColor ? { color: data.tintColor, } : null;
+    var getCurrentRoutes = navigator.getCurrentRoutes;
 
     return (
-      <Text
-        style={[styles.navBarTitleText, colorStyle, ]}>
-        {data.title}
+      hidePrev ||
+      (getCurrentRoutes && getCurrentRoutes().length <= 1 && !onPrev)
+    );
+  },
+
+  /**
+   * Describes how we get a left button in the navbar
+   */
+  getLeftButtonElement: function() {
+    var {
+      onPrev,
+      prevTitle,
+      navigator,
+      route,
+      buttonsColor,
+      customPrev,
+    } = this.props;
+
+    /*
+     * If we have a `customPrev` component, then return
+     * it's clone with additional attributes
+     */
+    if (customPrev) {
+      return React.cloneElement(customPrev, { navigator, route });
+    }
+
+    /*
+     * Check if we need to hide `prev` button
+     */
+    if (this.prevButtonShouldBeHidden()) {
+      return <View style={styles.navBarLeftButton}></View>;
+    }
+
+    /*
+     * Apply custom background styles to button
+     */
+    var customStyle = buttonsColor ? { color: buttonsColor } : {};
+
+    return (
+      <TouchableOpacity onPress={onPrev || navigator.pop}>
+        <View style={styles.navBarLeftButton}>
+          <Text style={[styles.navBarText, styles.navBarButtonText, customStyle]}>
+            {prevTitle || 'Back'}
+          </Text>
+        </View>
+      </TouchableOpacity>
+    );
+  },
+
+  /*
+   * Describe how we get a title for the navbar
+   */
+  getTitleElement: function() {
+    var {
+      title,
+      titleColor,
+      customTitle,
+      navigator,
+      route,
+    } = this.props;
+
+    /*
+     * Return `customTitle` component if we have it
+     */
+    if (customTitle) {
+      return (
+        <View style={styles.customTitle}>
+          {React.cloneElement(customTitle, { navigator, route })}
+        </View>
+      );
+    }
+
+    if (title && !title.length) {
+      return true;
+    }
+
+    var titleStyle = [
+      styles.navBarText,
+      styles.navBarTitleText,
+      { color: titleColor }
+    ];
+
+    return (
+      <Text style={titleStyle}>
+        {title}
       </Text>
     );
-  }
+  },
 
-  render() {
-    const customTintColor = this.props.tintColor ?
-      { backgroundColor: this.props.tintColor } : null;
+  getRightButtonElement: function() {
+    var {
+      onNext,
+      nextTitle,
+      navigator,
+      route,
+      buttonsColor,
+      customNext
+    } = this.props;
 
-    const statusBar = !this.props.statusBar.hidden ?
-      <View style={[styles.statusBar, ]} /> : null;
+    /*
+     * If we have a `customNext` component, then return
+     * it's clone with additional attributes
+     */
+    if (customNext) {
+      return React.cloneElement(customNext, { navigator, route });
+    }
+
+    /*
+     * If we haven't received `onNext` handler, then just return
+     * a placeholder for button to keep markup consistant and
+     * title aligned to the center
+     */
+    if (!onNext) {
+      return <Text style={styles.navBarRightButton}></Text>;
+    }
+
+    /*
+     * Apply custom background styles to button
+     */
+    var customStyle = buttonsColor ? { color: buttonsColor } : {};
 
     return (
-      <View style={[styles.navBarContainer, customTintColor, ]}>
-        {statusBar}
-        <View style={[styles.navBar, this.props.style, ]}>
-          {this.getTitleElement(this.props.title)}
-          {this.getButtonElement(this.props.leftButton, { marginLeft: 8, })}
-          {this.getButtonElement(this.props.rightButton, { marginRight: 8, })}
+      <TouchableOpacity onPress={onNext}>
+        <View style={styles.navBarRightButton}>
+          <Text style={[styles.navBarText, styles.navBarButtonText, customStyle]}>
+            {nextTitle || 'Next'}
+          </Text>
         </View>
+      </TouchableOpacity>
+    );
+  },
+
+  render: function() {
+
+    if (this.props.statusBar === 'lightContent') {
+      StatusBarIOS.setStyle('light-content', false);
+    } else if (this.props.statusBar === 'default') {
+      StatusBarIOS.setStyle('default', false);
+    }
+
+    var backgroundStyle = this.props.backgroundColor ?
+      { backgroundColor: this.props.backgroundColor } : {},
+        customStyle = this.props.style;
+
+    return (
+      <View style={[styles.navBarContainer, backgroundStyle, customStyle ]}>
+        {this.getTitleElement()}
+        {this.getLeftButtonElement()}
+        {this.getRightButtonElement()}
       </View>
     );
-  }
+  },
+});
 
-  static propTypes = {
-    tintColor: PropTypes.string,
-    statusBar: PropTypes.shape(StatusBarShape),
-    leftButton: PropTypes.oneOfType([
-      PropTypes.shape(ButtonShape),
-      PropTypes.element,
-    ]),
-    rightButton: PropTypes.oneOfType([
-      PropTypes.shape(ButtonShape),
-      PropTypes.element,
-    ]),
-    title: PropTypes.oneOfType([
-      PropTypes.shape(TitleShape),
-      PropTypes.element,
-    ]),
-  }
-
-  static defaultProps = {
-    statusBar: {
-      style: 'default',
-      hidden: false,
-      hideAnimation: 'slide',
-      showAnimation: 'slide',
-    },
-    title: {
-      title: '',
-    },
-  }
-}
+module.exports = NavigationBar;
